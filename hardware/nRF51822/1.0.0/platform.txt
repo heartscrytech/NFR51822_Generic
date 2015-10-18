@@ -88,7 +88,7 @@ tools.avrdude.config.path.linux={runtime.hardware.path}/RBL_nRF51822/avrdude_con
 tools.avrdude.upload.params.quiet=-q -q
 #tools.avrdude.upload.pattern="{cmd.path}" "-C{config.path}" {upload.verbose} -p{build.mcu} -c{upload.protocol} -P{serial.port} -b{upload.speed} -D "-Uflash:w:{build.path}/{build.project_name}.hex:i"
 
-tools.avrdude.upload.pattern="{cmd.path}" -f interface/cmsis-dap.cfg -f target/nrf51.cfg -c "program {build.path}/{build.project_name}.hex verify exit”
+tools.avrdude.upload.pattern="{cmd.path}" -f interface/cmsis-dap.cfg -f target/nrf51.cfg -c "program {build.path}/{build.project_name}_OTA.hex verify reset exit"
 
 
 
