@@ -23,6 +23,10 @@
 //#include "BLEDevice.h"
 #include "Arduino.h"
 
+#define SERIAL_DEBUG 1
+
+
+
 /**
  * A class to communicate a BLE MIDI device
  */
@@ -31,12 +35,17 @@ public:
     /**
      * Constructor
      */
-    BLEMIDI(BLE *device);
+    BLEMIDI(BLE &dev);
     
     /**
      * Constructor with device name
      */
-    BLEMIDI(BLE *dev, char *deviceName);
+    BLEMIDI(BLE &dev, char *deviceName);
+    
+    /**
+        Return the device.
+     */
+    BLE &getDevice() { return device; }
     
     /**
      * Check if a BLE MIDI device is connected
@@ -226,6 +235,21 @@ public:
     }
     
     /**
+     * Attach a callback when the device is connected to controller device
+     */
+    inline void attachDeviceConnected(void (*fn)()) {
+        onDeviceConnection = fn;
+    }
+    
+    /**
+     * Attach a callback when the device is disconnected to controller device
+     */
+    inline void attachDeviceDisconnected(void (*fn)()) {
+        onDeviceDisconnection = fn;
+    }
+    
+    
+    /**
      * Send a `Tune Request` event
      */
     void sendTuneRequest();
@@ -349,16 +373,6 @@ public:
      */
     void sendSystemExclusive(uint8_t * sysex, uint16_t length);
     
-    /**
-     * Notifies BLE disconnection to this BLE MIDI instance
-     */
-    void onBleDisconnection(Gap::Handle_t handle, Gap::DisconnectionReason_t reason);
-    
-    /**
-     * Notifies BLE connection to this BLE MIDI instance
-     */
-    void onBleConnection(/*Gap::Handle_t handle, Gap::addr_type_t type, const Gap::address_t addr, const Gap::ConnectionParams_t *params*/const Gap::ConnectionCallbackParams_t *params);
-    
 private:
     bool isConnected;
     
@@ -401,6 +415,9 @@ private:
     void (*onSongPositionPointer)(uint16_t);
     void (*onSystemExclusive)(uint8_t *, uint16_t, bool);
     
+    void (*onDeviceConnection)();
+    void (*onDeviceDisconnection)();
+    
     void sendMidiMessage(uint8_t data0);
     void sendMidiMessage(uint8_t data0, uint8_t data1);
     void sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2);
@@ -409,9 +426,15 @@ private:
     
     uint8_t midi[20];
     
-    BLE *device;
-    GattCharacteristic *midiCharacteristic;    
+    GattCharacteristic *midiCharacteristic;
     Timer tick;
+    
+protected:
+    
+    BLE device;
+    void onDisconnection(void);
+    void onConnection(const Gap::ConnectionCallbackParams_t* params);;
+    
 };
 
 #endif /* __NRF_MIDI_H__ */

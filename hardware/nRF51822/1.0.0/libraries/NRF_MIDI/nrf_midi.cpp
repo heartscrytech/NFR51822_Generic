@@ -21,20 +21,31 @@
 static const unsigned LENGTH_OF_LONG_UUID = 16;
 typedef uint8_t       LongUUIDBytes_t[LENGTH_OF_LONG_UUID];
 
-void BLEMIDI::onBleDisconnection(Gap::Handle_t handle, Gap::DisconnectionReason_t reason) {
-    device->startAdvertising();
+/*void BLEMIDI::onBleDisconnection(Gap::Handle_t handle, Gap::DisconnectionReason_t reason) {
+    device.startAdvertising();
     isConnected = false;
 }
 
-void BLEMIDI::onBleConnection(/*Gap::Handle_t handle, Gap::addr_type_t type, const Gap::address_t addr, const Gap::ConnectionParams_t *params*/const Gap::ConnectionCallbackParams_t *params) {
+void BLEMIDI::onBleConnection(const Gap::ConnectionCallbackParams_t* params) {
     isConnected = true;
+}*/
+
+void BLEMIDI::onDisconnection(void) {
+    device.startAdvertising();
+    isConnected = false;
+    onDeviceDisconnection();
+}
+
+void BLEMIDI::onConnection(const Gap::ConnectionCallbackParams_t* params) {
+    isConnected = true;
+    onDeviceConnection();
 }
 
 void BLEMIDI::dataWrittenCallback(const GattWriteCallbackParams *params) {
     uint16_t length;
     uint8_t rxBuffer[20];
     
-    device->readCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), rxBuffer, &length);
+    device.readCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), rxBuffer, &length);
     
     if (length > 1) {
         // parse BLE message
@@ -266,12 +277,14 @@ void BLEMIDI::dataWrittenCallback(const GattWriteCallbackParams *params) {
     }
 }
 
-BLEMIDI::BLEMIDI(BLE *dev) {
+BLEMIDI::BLEMIDI(BLE &dev) : device(dev) {
     BLEMIDI(dev, "MIDI");
 }
 
-BLEMIDI::BLEMIDI(BLE *dev, char *deviceName) {
-    device = dev;
+BLEMIDI::BLEMIDI(BLE &dev, char *deviceName) : device(dev) {
+    
+    pinMode(8, OUTPUT);
+    
     isConnected = false;
     sysExBufferPos = 0;
     
@@ -280,49 +293,62 @@ BLEMIDI::BLEMIDI(BLE *dev, char *deviceName) {
     midiEventNote = 0;
     midiEventVelocity = 0;
     
-    // MIDI characteristic
+    
+    // MIDI service (see: https://developer.apple.com/bluetooth/Apple-Bluetooth-Low-Energy-MIDI-Specification.pdf)
+    LongUUIDBytes_t serviceUuid = {
+        0x03, 0xb8, 0x0e, 0x5a, 0xed, 0xe8, 0x4b, 0x33,
+        0xa7, 0x51, 0x6c, 0xe3, 0x4e, 0xc4, 0xc7, 0x00
+    }; //Correct
+    
+    // MIDI IO characteristic
     LongUUIDBytes_t characteristicUuid = {
         0x77, 0x72, 0xe5, 0xdb, 0x38, 0x68, 0x41, 0x12,
         0xa1, 0xa9, 0xf2, 0x66, 0x9d, 0x10, 0x6b, 0xf3
     };
     
+    //PASS
+    
     midiCharacteristic = new GattCharacteristic(UUID(characteristicUuid), midi, 0, 20, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE_WITHOUT_RESPONSE | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_READ | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY);
+    
     GattCharacteristic *midiChars[] = {midiCharacteristic};
     
-    // MIDI service
-    LongUUIDBytes_t serviceUuid = {
-        0x03, 0xb8, 0x0e, 0x5a, 0xed, 0xe8, 0x4b, 0x33,
-        0xa7, 0x51, 0x6c, 0xe3, 0x4e, 0xc4, 0xc7, 0x00
-    };
-    
     GattService midiService(UUID(serviceUuid), midiChars, sizeof(midiChars) / sizeof(GattCharacteristic *));
+    
     uint8_t uuid128_list[] = {
         0x00, 0xc7, 0xc4, 0x4e, 0xe3, 0x6c, 0x51, 0xa7,
         0x33, 0x4b, 0xe8, 0xed, 0x5a, 0x0e, 0xb8, 0x03
     };
     
-    device->init();
-    //device->reset();
+    //PASS
+    
+    //device.init();
+    //device.reset();
+    // digitalWrite(8, HIGH);
     
     /* setup callbacks */
-    device->onDataWritten(this, &BLEMIDI::dataWrittenCallback);
+    device.onDataWritten(this, &BLEMIDI::dataWrittenCallback);
     
-    device->addService(midiService);
+    //digitalWrite(8, HIGH);
+    
+    device.addService(midiService);
     
     /* setup advertising */
-    device->accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS, (uint8_t*)uuid128_list, sizeof(uuid128_list));
-    device->accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
-    device->accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)deviceName, sizeof(deviceName));
+    device.accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS, (uint8_t*)uuid128_list, sizeof(uuid128_list));
+    device.accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
+    device.accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)deviceName, sizeof(deviceName));
     
-    device->setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
-    device->setAdvertisingInterval(160); /* 100ms; in multiples of 0.625ms. */
+    device.setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
+    device.setAdvertisingInterval(160); /* 100ms; in multiples of 0.625ms. */
     
-    device->startAdvertising();
+    device.startAdvertising();
     tick.start();
     
     //Auto start connection details
-    device.onConnection(onBleConnection);
-    device.onDisconnection(onBleDisconnection);
+    //device.gap().onConnection(&BLEMIDI::onBleConnection);
+    //device.gap().onDisconnection(&BLEMIDI::onBleDisconnection);
+    
+    //device.gap().addToDisconnectionCallChain(this, &BLEMIDI::onDisconnection);
+    //device.gap().onConnection((Gap::ConnectionEventCallback_t)&BLEMIDI::onConnection);
 }
 
 bool BLEMIDI::connected() {
@@ -336,7 +362,7 @@ void BLEMIDI::sendMidiMessage(uint8_t data0) {
         midi[1] = 0x80 | (ticks & 0x7f);
         midi[2] = data0;
         
-        device->updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 3);
+        device.updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 3);
     }
 }
 
@@ -348,11 +374,12 @@ void BLEMIDI::sendMidiMessage(uint8_t data0, uint8_t data1) {
         midi[2] = data0;
         midi[3] = data1;
         
-        device->updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 4);
+        device.updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 4);
     }
 }
 
 void BLEMIDI::sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2) {
+    //digitalWrite(8, HIGH);
     if (isConnected) {
         unsigned int ticks = tick.read_ms() & 0x1fff;
         midi[0] = 0x80 | ((ticks >> 7) & 0x3f);
@@ -361,7 +388,7 @@ void BLEMIDI::sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2) {
         midi[3] = data1;
         midi[4] = data2;
         
-        device->updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 5);
+        device.updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 5);
     }
 }
 
@@ -431,7 +458,7 @@ void BLEMIDI::sendSystemExclusive(uint8_t * sysex, uint16_t length) {
                 midi[position++] = 0x80 | (ticks & 0x7f);
                 
                 if (position == 20) {
-                    device->updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 20);
+                    device.updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 20);
                     
                     position = 0;
                     // header
@@ -440,7 +467,7 @@ void BLEMIDI::sendSystemExclusive(uint8_t * sysex, uint16_t length) {
             }
             midi[position++] = sysex[i];
             if (position == 20) {
-                device->updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 20);
+                device.updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 20);
                 
                 position = 0;
                 // header
@@ -452,7 +479,7 @@ void BLEMIDI::sendSystemExclusive(uint8_t * sysex, uint16_t length) {
         
         if (position > 0) {
             // send remains
-            device->updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, position);
+            device.updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, position);
         }
     }
 }
