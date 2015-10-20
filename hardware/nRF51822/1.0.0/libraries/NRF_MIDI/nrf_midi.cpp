@@ -33,12 +33,13 @@ void BLEMIDI::onBleConnection(const Gap::ConnectionCallbackParams_t* params) {
 void BLEMIDI::onDisconnection(void) {
     device.startAdvertising();
     isConnected = false;
-    onDeviceDisconnection();
+    //onDeviceDisconnection();
 }
 
 void BLEMIDI::onConnection(const Gap::ConnectionCallbackParams_t* params) {
+    Serial1.println("Device Connected");
     isConnected = true;
-    onDeviceConnection();
+    //onDeviceConnection();
 }
 
 void BLEMIDI::dataWrittenCallback(const GattWriteCallbackParams *params) {
@@ -283,8 +284,6 @@ BLEMIDI::BLEMIDI(BLE &dev) : device(dev) {
 
 BLEMIDI::BLEMIDI(BLE &dev, char *deviceName) : device(dev) {
     
-    pinMode(8, OUTPUT);
-    
     isConnected = false;
     sysExBufferPos = 0;
     
@@ -347,8 +346,8 @@ BLEMIDI::BLEMIDI(BLE &dev, char *deviceName) : device(dev) {
     //device.gap().onConnection(&BLEMIDI::onBleConnection);
     //device.gap().onDisconnection(&BLEMIDI::onBleDisconnection);
     
-    //device.gap().addToDisconnectionCallChain(this, &BLEMIDI::onDisconnection);
-    //device.gap().onConnection((Gap::ConnectionEventCallback_t)&BLEMIDI::onConnection);
+    device.gap().addToDisconnectionCallChain(this, &BLEMIDI::onDisconnection);
+    device.gap().onConnection((Gap::ConnectionEventCallback_t)&BLEMIDI::onConnection);
 }
 
 bool BLEMIDI::connected() {
@@ -379,7 +378,6 @@ void BLEMIDI::sendMidiMessage(uint8_t data0, uint8_t data1) {
 }
 
 void BLEMIDI::sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2) {
-    //digitalWrite(8, HIGH);
     if (isConnected) {
         unsigned int ticks = tick.read_ms() & 0x1fff;
         midi[0] = 0x80 | ((ticks >> 7) & 0x3f);
@@ -389,7 +387,7 @@ void BLEMIDI::sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2) {
         midi[4] = data2;
         
         device.updateCharacteristicValue(midiCharacteristic->getValueAttribute().getHandle(), midi, 5);
-    }
+   }
 }
 
 void BLEMIDI::sendTuneRequest() {

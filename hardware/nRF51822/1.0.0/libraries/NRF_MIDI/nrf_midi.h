@@ -32,6 +32,7 @@
  */
 class BLEMIDI {
 public:
+    
     /**
      * Constructor
      */
@@ -431,9 +432,9 @@ private:
     
 protected:
     
-    BLE device;
+    BLE &device;
     void onDisconnection(void);
-    void onConnection(const Gap::ConnectionCallbackParams_t* params);;
+    void onConnection(const Gap::ConnectionCallbackParams_t* params);
     
 };
 
